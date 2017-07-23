@@ -93,6 +93,7 @@ func (self *Imap) getStatus(ch chan string) {
             status := strings.TrimRight(token, " ")
             ch <- status
             self.readToEOL()
+            return
         default:
             self.readToEOL()
         }
@@ -150,6 +151,7 @@ func (self *Imap) readFetch() {
 }
 
 func (self *Imap) idle() {
+    log.Printf("start idle...")
     for {
         token, err := self.r.ReadString(' ')
         if err != nil {
