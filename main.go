@@ -13,9 +13,9 @@ import (
 )
 
 func check(err error) {
-	if err != nil {
+    if err != nil {
         log.Fatal(err)
-	}
+    }
 }
 
 func readToEOL(br (*bufio.Reader)) {
@@ -103,12 +103,12 @@ func read(ch chan string, conn *tls.Conn) {
     br := bufio.NewReader(r)
     for {
         token, err := br.ReadString(' ')
-	    if err != nil {
+        if err != nil {
             conn.Close()
             log.Printf("close conection")
             ch <- "close"
             return
-	    }
+        }
 
         check(err)
         switch token {
@@ -125,15 +125,15 @@ func read(ch chan string, conn *tls.Conn) {
 
 func write(w io.Writer, message string) {
     n, err := w.Write([]byte(message + "\r\n"))
-	check(err)
+    check(err)
     log.Printf("client: wrote %q (%d bytes)", message, n)
 }
 
 func connect() (*tls.Conn) {
-	log.Printf("connecting...")
-	conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
-	check(err)
-	log.Printf("connected!")
+    log.Printf("connecting...")
+    conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
+    check(err)
+    log.Printf("connected!")
 
     return conn
 }
