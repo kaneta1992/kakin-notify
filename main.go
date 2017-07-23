@@ -20,6 +20,10 @@ type Config struct {
     UserId          string
     Passward        string
     MailBox         string
+    SlackInfo       []SlackInfo
+}
+
+type SlackInfo struct {
     SlackToken      string
     SlackName       string
     SlackIconUrl    string
@@ -28,17 +32,19 @@ type Config struct {
 
 var config Config
 
-func slackPost(message string) {
-	hook := slack.NewWebHook(config.SlackToken)
-	err := hook.PostMessage(&slack.WebHookPostPayload{
-		Attachments: []*slack.Attachment{
-			{Text: message, Color: "danger"},
-		},
-		Channel: config.SlackChannel,
-        Username: config.SlackName,
-        IconUrl: config.SlackIconUrl,
-	})
-    check(err)
+func notify(message string) {
+    for _, row := range config.SlackInfo {
+        hook := slack.NewWebHook(row.SlackToken)
+        err := hook.PostMessage(&slack.WebHookPostPayload{
+            Attachments: []*slack.Attachment{
+                {Text: message, Color: "danger"},
+            },
+            Channel: row.SlackChannel,
+            Username: row.SlackName,
+            IconUrl: row.SlackIconUrl,
+        })
+        check(err)
+    }
 }
 
 func responseLoop(im *imap.Imap) {
@@ -63,9 +69,9 @@ func responseLoop(im *imap.Imap) {
             group := assined.FindStringSubmatch(string(decode_text))
             if group != nil {
                 log.Printf(group[1])
-                slackPost(fmt.Sprintf("私は%s課金しました", group[1]))
+                notify(fmt.Sprintf("私は%s課金しました", group[1]))
             } else {
-                slackPost("私は課金しました?")
+                notify("私は課金しました?")
             }
         }
     }
