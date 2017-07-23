@@ -5,8 +5,6 @@ import (
     "io"
     "log"
     "strings"
-    "encoding/base64"
-    "regexp"
     "fmt"
 )
 
@@ -38,11 +36,38 @@ func Create() *Imap {
     return im
 }
 
+func (self *Imap) Login(id string, pass string, mail string) {
+    self.userId = id
+    self.passward = pass
+    self.mailBox = mail 
+
+    self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
+    self.write(fmt.Sprintf("? SELECT %s", mail))
+
+    log.Printf("login")
+}
+
+func (self *Imap) Logout() {
+    self.write("? LOGOUT")
+    log.Printf("logout")
+    self.conn.Close()
+    log.Printf("close conection")
+}
+
+func (self *Imap) Listen(ch chan string) {
+    self.write("? IDLE")
+    go self.read(ch)
+}
+
 func check(err error) {
-    log.SetFlags(log.LstdFlags | log.Lshortfile) 
     if err != nil {
         log.Fatal(err)
     }
+}
+
+func (self *Imap) write(message string) {
+    n, _ := self.w.Write([]byte(message + "\r\n"))
+    log.Printf("client: wrote %q (%d bytes)", message, n)
 }
 
 func (self *Imap) readToEOL() {
@@ -50,24 +75,22 @@ func (self *Imap) readToEOL() {
     check(err)
 }
 
-func (self *Imap) notify(number string) {
-    im := Create()
-    im.Login(self.userId, self.passward, self.mailBox)
-    im.write("? FETCH " + number + " BODY[1]")
-    
-    ch := make(chan string)
-    go im.read(ch)
-    response := <- ch
-    
-    im.Logout()
-
-    self.response <- response
-
-    assined := regexp.MustCompile("合計: (.*)\n")
-    group := assined.FindStringSubmatch(string(response))
-
-    if group != nil {
-        log.Printf(group[1])
+func (self *Imap) readFetch() {
+    _, err := self.r.ReadString(' ')
+    check(err)
+    token, err := self.r.ReadString(' ')
+    check(err)
+    switch token {
+    case "FETCH ":
+        self.readToEOL()
+        encode_text, err := self.r.ReadString(')')
+        check(err)
+        encode_text = strings.TrimRight(encode_text, ")")
+        encode_text = strings.Replace(string(encode_text), "\r\n", "", -1)
+        self.response  <- string(encode_text)
+        self.readToEOL()
+    default:
+        self.readToEOL()
     }
 }
 
@@ -99,32 +122,18 @@ func (self *Imap) idle() {
     }
 }
 
-func (self *Imap) readFetch() {
-    _, err := self.r.ReadString(' ')
-    check(err)
-    token, err := self.r.ReadString(' ')
-    check(err)
-    switch token {
-    case "FETCH ":
-        self.readToEOL()
-        encode_text, err := self.r.ReadString(')')
-        check(err)
-        encode_text = strings.TrimRight(encode_text, ")")
-        encode_text = strings.Replace(string(encode_text), "\r\n", "", -1)
-        decode_text, err := base64.StdEncoding.DecodeString(encode_text)
-        self.readToEOL()
+func (self *Imap) notify(number string) {
+    im := Create()
+    im.Login(self.userId, self.passward, self.mailBox)
+    im.write("? FETCH " + number + " BODY[1]")
+    
+    ch := make(chan string)
+    go im.read(ch)
+    response := <- ch
+    
+    im.Logout()
 
-        if err != nil {
-            self.response <- string(encode_text)
-            log.Printf(string(encode_text))
-            return
-        }
-
-        self.response  <- string(decode_text)
-        log.Printf(string(decode_text))
-    default:
-        self.readToEOL()
-    }
+    self.response <- response
 }
 
 func (self *Imap) read(ch chan string) {
@@ -146,32 +155,4 @@ func (self *Imap) read(ch chan string) {
             self.readToEOL()
         }
     }
-}
-
-func (self *Imap) write(message string) {
-    n, _ := self.w.Write([]byte(message + "\r\n"))
-    log.Printf("client: wrote %q (%d bytes)", message, n)
-}
-
-func (self *Imap) Login(id string, pass string, mail string) {
-    self.userId = id
-    self.passward = pass
-    self.mailBox = mail 
-
-    self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
-    self.write(fmt.Sprintf("? SELECT %s", mail))
-
-    log.Printf("login")
-}
-
-func (self *Imap) Logout() {
-    self.write("? LOGOUT")
-    log.Printf("logout")
-    self.conn.Close()
-    log.Printf("close conection")
-}
-
-func (self *Imap) Listen(ch chan string) {
-    self.write("? IDLE")
-    go self.read(ch)
 }

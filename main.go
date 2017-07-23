@@ -4,6 +4,8 @@ import (
     "log"
     "gopkg.in/yaml.v2"
     "./imap"
+    "encoding/base64"
+    "regexp"
 )
 
 func check(err error) {
@@ -34,7 +36,18 @@ func responseLoop(im *imap.Imap) {
             im.Logout()
             return
         default:
-            log.Printf(response)
+            decode_text, err := base64.StdEncoding.DecodeString(response)
+            if err != nil {
+                log.Printf(response)
+                continue
+            }
+            log.Printf(string(decode_text))
+
+            assined := regexp.MustCompile("合計: (.*)\n")
+            group := assined.FindStringSubmatch(string(decode_text))
+            if group != nil {
+                log.Printf(group[1])
+            }
         }
     }
 }
