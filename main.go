@@ -23,21 +23,33 @@ type Config struct {
 
 var config Config
 
+func responseLoop(im *imap.Imap) {
+    ch := make(chan string)
+    im.Listen(ch)
+
+    for {
+        response := <- ch
+        switch response {
+        case "close":
+            im.Logout()
+            return
+        default:
+            log.Printf(response)
+        }
+    }
+}
+
 func main() {
+    log.SetFlags(log.LstdFlags | log.Lshortfile) 
     buf, err := ioutil.ReadFile("config.yml")
     check(err)
     err = yaml.Unmarshal(buf, &config)
     check(err)
 
     for {
-        im := imap.Create(config.UserId, config.Passward, config.MailBox)
+        im := imap.Create()
+        im.Login(config.UserId, config.Passward, config.MailBox)
 
-        ch := make(chan string)
-        go im.Read(ch)
-
-        im.Write("? IDLE")
-
-        <- ch
-        im.Close()
+        responseLoop(im)
     }
 }

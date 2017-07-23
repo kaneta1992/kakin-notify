@@ -15,11 +15,12 @@ type Imap struct {
     passward    string
     mailBox     string
     conn        *tls.Conn
+    response    chan string
     r           *bufio.Reader
     w           io.Writer
 }
 
-func Create(id string, pass string, mail string) *Imap {
+func Create() *Imap {
     log.Printf("connecting...")
     conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
     check(err)
@@ -29,21 +30,16 @@ func Create(id string, pass string, mail string) *Imap {
     var r io.Reader = conn
 
     im := &Imap {
-        userId:     id,
-        passward:   pass,
-        mailBox:    mail,
         conn:       conn,
         r:          bufio.NewReader(r),
         w:          w,
     }
 
-    im.Write(fmt.Sprintf("? LOGIN %s %s", id, pass))
-    im.Write(fmt.Sprintf("? SELECT %s", mail))
-
     return im
 }
 
 func check(err error) {
+    log.SetFlags(log.LstdFlags | log.Lshortfile) 
     if err != nil {
         log.Fatal(err)
     }
@@ -55,15 +51,17 @@ func (self *Imap) readToEOL() {
 }
 
 func (self *Imap) notify(number string) {
-    im := Create(self.userId, self.passward, self.mailBox)
-
-    im.Write("? FETCH " + number + " BODY[1]")
+    im := Create()
+    im.Login(self.userId, self.passward, self.mailBox)
+    im.write("? FETCH " + number + " BODY[1]")
     
     ch := make(chan string)
-    go im.Read(ch)
+    go im.read(ch)
     response := <- ch
+    
+    im.Logout()
 
-    im.Close()
+    self.response <- response
 
     assined := regexp.MustCompile("合計: (.*)\n")
     group := assined.FindStringSubmatch(string(response))
@@ -73,7 +71,7 @@ func (self *Imap) notify(number string) {
     }
 }
 
-func (self *Imap) idle(ch chan string) {
+func (self *Imap) idle() {
     for {
         token, err := self.r.ReadString(' ')
         if err != nil {
@@ -89,7 +87,7 @@ func (self *Imap) idle(ch chan string) {
 
             token, _, err := self.r.ReadLine()
             if string(token) != "EXISTS" {
-                log.Printf("FETCH")
+                log.Printf(string(token))
                 continue
             }
 
@@ -101,8 +99,9 @@ func (self *Imap) idle(ch chan string) {
     }
 }
 
-func (self *Imap) readFetch(ch chan string) {
+func (self *Imap) readFetch() {
     _, err := self.r.ReadString(' ')
+    check(err)
     token, err := self.r.ReadString(' ')
     check(err)
     switch token {
@@ -116,48 +115,63 @@ func (self *Imap) readFetch(ch chan string) {
         self.readToEOL()
 
         if err != nil {
-            ch <- string(encode_text)
+            self.response <- string(encode_text)
             log.Printf(string(encode_text))
             return
         }
 
-        ch <- string(decode_text)
+        self.response  <- string(decode_text)
         log.Printf(string(decode_text))
     default:
         self.readToEOL()
     }
 }
 
-func (self *Imap) Read(ch chan string) {
+func (self *Imap) read(ch chan string) {
+    self.response = ch
     for {
         token, err := self.r.ReadString(' ')
         if err != nil {
-            self.Close()
-            ch <- "close"
+            self.response <- "close"
             return
         }
 
-        check(err)
         switch token {
         case "* ":
-            self.readFetch(ch)
+            self.readFetch()
         case "+ ":
             self.readToEOL()
-            self.idle(ch)
+            self.idle()
         default:
             self.readToEOL()
         }
     }
 }
 
-func (self *Imap) Write(message string) {
-    n, err := self.w.Write([]byte(message + "\r\n"))
-    check(err)
+func (self *Imap) write(message string) {
+    n, _ := self.w.Write([]byte(message + "\r\n"))
     log.Printf("client: wrote %q (%d bytes)", message, n)
 }
 
-func (self *Imap) Close() {
-    self.Write("? LOGOUT")
+func (self *Imap) Login(id string, pass string, mail string) {
+    self.userId = id
+    self.passward = pass
+    self.mailBox = mail 
+
+    self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
+    self.write(fmt.Sprintf("? SELECT %s", mail))
+
+    log.Printf("login")
+}
+
+func (self *Imap) Logout() {
+    self.write("? LOGOUT")
+    log.Printf("logout")
     self.conn.Close()
     log.Printf("close conection")
+}
+
+func (self *Imap) Listen(ch chan string) {
+    self.write("? IDLE")
+    go self.read(ch)
 }
