@@ -6,6 +6,8 @@ import (
     "./imap"
     "encoding/base64"
     "regexp"
+    "github.com/bluele/slack"
+    "fmt"
 )
 
 func check(err error) {
@@ -21,9 +23,23 @@ type Config struct {
     SlackToken      string
     SlackName       string
     SlackIconUrl    string
+    SlackChannel    string
 }
 
 var config Config
+
+func slackPost(message string) {
+	hook := slack.NewWebHook(config.SlackToken)
+	err := hook.PostMessage(&slack.WebHookPostPayload{
+		Attachments: []*slack.Attachment{
+			{Text: message, Color: "danger"},
+		},
+		Channel: config.SlackChannel,
+        Username: config.SlackName,
+        IconUrl: config.SlackIconUrl,
+	})
+    check(err)
+}
 
 func responseLoop(im *imap.Imap) {
     ch := make(chan string)
@@ -39,6 +55,7 @@ func responseLoop(im *imap.Imap) {
             decode_text, err := base64.StdEncoding.DecodeString(response)
             if err != nil {
                 log.Printf(response)
+                slackPost("私は課金しました")
                 continue
             }
             log.Printf(string(decode_text))
@@ -47,6 +64,9 @@ func responseLoop(im *imap.Imap) {
             group := assined.FindStringSubmatch(string(decode_text))
             if group != nil {
                 log.Printf(group[1])
+                slackPost(fmt.Sprintf("私は%s課金しました", group[1]))
+            } else {
+                slackPost("私は課金しました?")
             }
         }
     }
