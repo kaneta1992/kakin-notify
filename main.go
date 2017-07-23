@@ -52,15 +52,14 @@ func responseLoop(im *imap.Imap) {
             im.Logout()
             return
         default:
-            decode_text, err := base64.StdEncoding.DecodeString(response)
+            decode, err := base64.StdEncoding.DecodeString(response)
+            decode_text := string(decode)
             if err != nil {
-                log.Printf(response)
-                slackPost("私は課金しました")
-                continue
+                decode_text = response
             }
             log.Printf(string(decode_text))
 
-            assined := regexp.MustCompile("合計: (.*)\n")
+            assined := regexp.MustCompile("合計: (.*)\r\n")
             group := assined.FindStringSubmatch(string(decode_text))
             if group != nil {
                 log.Printf(group[1])
