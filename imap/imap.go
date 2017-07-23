@@ -70,6 +70,27 @@ func (self *Imap) write(message string) {
     log.Printf("client: wrote %q (%d bytes)", message, n)
 }
 
+func (self *Imap) read(ch chan string) {
+    self.response = ch
+    for {
+        token, err := self.r.ReadString(' ')
+        if err != nil {
+            self.response <- "close"
+            return
+        }
+
+        switch token {
+        case "* ":
+            self.readFetch()
+        case "+ ":
+            self.readToEOL()
+            self.idle()
+        default:
+            self.readToEOL()
+        }
+    }
+}
+
 func (self *Imap) readToEOL() {
     _, _, err := self.r.ReadLine()
     check(err)
@@ -134,25 +155,4 @@ func (self *Imap) notify(number string) {
     im.Logout()
 
     self.response <- response
-}
-
-func (self *Imap) read(ch chan string) {
-    self.response = ch
-    for {
-        token, err := self.r.ReadString(' ')
-        if err != nil {
-            self.response <- "close"
-            return
-        }
-
-        switch token {
-        case "* ":
-            self.readFetch()
-        case "+ ":
-            self.readToEOL()
-            self.idle()
-        default:
-            self.readToEOL()
-        }
-    }
 }

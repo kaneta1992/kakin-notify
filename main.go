@@ -10,12 +10,6 @@ import (
     "fmt"
 )
 
-func check(err error) {
-    if err != nil {
-        log.Fatal(err)
-    }
-}
-
 type Config struct {
     UserId          string
     Passward        string
@@ -30,7 +24,11 @@ type SlackInfo struct {
     SlackChannel    string
 }
 
-var config Config
+func check(err error) {
+    if err != nil {
+        log.Fatal(err)
+    }
+}
 
 func notify(message string) {
     for _, row := range config.SlackInfo {
@@ -77,6 +75,8 @@ func responseLoop(im *imap.Imap) {
     }
 }
 
+var config Config
+
 func main() {
     log.SetFlags(log.LstdFlags | log.Lshortfile) 
     buf, err := ioutil.ReadFile("config.yml")
@@ -87,7 +87,6 @@ func main() {
     for {
         im := imap.Create()
         im.Login(config.UserId, config.Passward, config.MailBox)
-
         responseLoop(im)
     }
 }
