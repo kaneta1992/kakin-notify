@@ -43,18 +43,16 @@ func (self *Imap) Login(id string, pass string, mail string) {
     self.passward = pass
     self.mailBox = mail 
 
-    self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
     ch := make(chan string)
+    self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
     go self.getStatus(ch)
-    status := <- ch
-    if ret := checkStatus(status); !ret {
+    if status := <- ch; status != "OK" {
         panic("login error")
     }
 
     self.write(fmt.Sprintf("? SELECT %s", mail))
     go self.getStatus(ch)
-    status = <- ch
-    if ret := checkStatus(status); !ret {
+    if status := <- ch; status != "OK" {
         panic("select error")
     }
     log.Printf("login")
@@ -70,15 +68,6 @@ func (self *Imap) Logout() {
 func (self *Imap) Listen(ch chan string) {
     self.write("? IDLE")
     go self.read(ch)
-}
-
-func checkStatus(status string) (bool) {
-    switch status {
-    case "OK":
-        return true
-    default:
-        return false
-    }
 }
 
 func check(err error) {
