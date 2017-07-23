@@ -85,7 +85,7 @@ func main() {
     check(err)
 
     for {
-        im := imap.Create()
+        im := imap.Create("imap.gmail.com:993")
         im.Login(config.UserId, config.Passward, config.MailBox)
         responseLoop(im)
     }

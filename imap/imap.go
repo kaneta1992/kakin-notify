@@ -9,6 +9,7 @@ import (
 )
 
 type Imap struct {
+    addr        string
     userId      string
     passward    string
     mailBox     string
@@ -18,9 +19,9 @@ type Imap struct {
     w           io.Writer
 }
 
-func Create() *Imap {
+func Create(addr string) *Imap {
     log.Printf("connecting...")
-    conn, err := tls.Dial("tcp", "imap.gmail.com:993", nil)
+    conn, err := tls.Dial("tcp", addr, nil)
     check(err)
     log.Printf("connected!")
 
@@ -28,6 +29,7 @@ func Create() *Imap {
     var r io.Reader = conn
 
     im := &Imap {
+        addr:       addr,
         conn:       conn,
         r:          bufio.NewReader(r),
         w:          w,
@@ -42,8 +44,19 @@ func (self *Imap) Login(id string, pass string, mail string) {
     self.mailBox = mail 
 
     self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
-    self.write(fmt.Sprintf("? SELECT %s", mail))
+    ch := make(chan string)
+    go self.getStatus(ch)
+    status := <- ch
+    if ret := checkStatus(status); !ret {
+        panic("login error")
+    }
 
+    self.write(fmt.Sprintf("? SELECT %s", mail))
+    go self.getStatus(ch)
+    status = <- ch
+    if ret := checkStatus(status); !ret {
+        panic("select error")
+    }
     log.Printf("login")
 }
 
@@ -59,6 +72,15 @@ func (self *Imap) Listen(ch chan string) {
     go self.read(ch)
 }
 
+func checkStatus(status string) (bool) {
+    switch status {
+    case "OK":
+        return true
+    default:
+        return false
+    }
+}
+
 func check(err error) {
     if err != nil {
         log.Fatal(err)
@@ -68,6 +90,24 @@ func check(err error) {
 func (self *Imap) write(message string) {
     n, _ := self.w.Write([]byte(message + "\r\n"))
     log.Printf("client: wrote %q (%d bytes)", message, n)
+}
+
+func (self *Imap) getStatus(ch chan string) {
+    for {
+        token, err := self.r.ReadString(' ')
+        check(err)
+
+        switch token {
+        case "? ":
+            token, err := self.r.ReadString(' ')
+            check(err)
+            status := strings.TrimRight(token, " ")
+            ch <- status
+            self.readToEOL()
+        default:
+            self.readToEOL()
+        }
+    }
 }
 
 func (self *Imap) read(ch chan string) {
@@ -144,7 +184,7 @@ func (self *Imap) idle() {
 }
 
 func (self *Imap) notify(number string) {
-    im := Create()
+    im := Create(self.addr)
     im.Login(self.userId, self.passward, self.mailBox)
     im.write("? FETCH " + number + " BODY[1]")
     
