@@ -121,11 +121,14 @@ func (self *Imap) read(ch chan string) {
 
         switch token {
         case "* ":
+            // FETCHコマンド以外実行されない前提
             self.readFetch()
         case "+ ":
+            // IDLE
             self.readToEOL()
             self.idle()
         default:
+            // その他はエラー処理なぞせず捨てる
             self.readToEOL()
         }
     }
@@ -144,9 +147,11 @@ func (self *Imap) readFetch() {
     switch token {
     case "FETCH ":
         self.readToEOL()
+        // BODYを読み込む
         encode_text, err := self.r.ReadString(')')
         check(err)
         encode_text = strings.TrimRight(encode_text, ")")
+        // crlfでいくつかに区切られているので結合する
         encode_text = strings.Replace(string(encode_text), "\r\n", "", -1)
         self.response  <- string(encode_text)
         self.readToEOL()
@@ -173,10 +178,9 @@ func (self *Imap) idle() {
             if string(token) != "EXISTS" {
                 log.Printf(string(token))
                 continue
-            }
-
+            }         
+            // IDLEしているgoroutineを止めないために新しいgroutineで実行する
             go self.notify(num)
-
         default:
             self.readToEOL()
         }
@@ -184,6 +188,7 @@ func (self *Imap) idle() {
 }
 
 func (self *Imap) notify(number string) {
+    // EXISTSを検出したらメール本文をチャネルに通知する
     im := Create(self.addr)
     im.Login(self.userId, self.passward, self.mailBox)
     im.write("? FETCH " + number + " BODY[1]")
