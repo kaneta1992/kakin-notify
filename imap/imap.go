@@ -72,24 +72,33 @@ func (self *Imap) Listen(ch chan string) {
 
 func check(err error) {
     if err != nil {
-        log.Fatal(err)
+        log.Fatalf("Fatal: %v", err)
+    }
+}
+
+func warning(err error) {
+    if err != nil {
+        log.Printf("Warning: %v", err)
     }
 }
 
 func (self *Imap) write(message string) {
-    n, _ := self.w.Write([]byte(message + "\r\n"))
+    n, err := self.w.Write([]byte(message + "\r\n"))
     log.Printf("client: wrote %q (%d bytes)", message, n)
+    warning(err)
 }
 
 func (self *Imap) getStatus(ch chan string) {
     for {
         token, err := self.r.ReadString(' ')
         check(err)
+        log.Printf(string(token))
 
         switch token {
         case "? ":
             token, err := self.r.ReadString(' ')
             check(err)
+            log.Printf(string(token))
             status := strings.TrimRight(token, " ")
             ch <- status
             self.readToEOL()
@@ -104,8 +113,13 @@ func (self *Imap) read(ch chan string) {
     self.response = ch
     for {
         token, err := self.r.ReadString(' ')
+        log.Printf(string(token))
+        warning(err)
         if err != nil {
-            self.response <- "close"
+            if self.response != nil {
+                self.response <- "close"
+            }
+            log.Printf("return read")
             return
         }
 
@@ -125,15 +139,18 @@ func (self *Imap) read(ch chan string) {
 }
 
 func (self *Imap) readToEOL() {
-    _, _, err := self.r.ReadLine()
+    token, _, err := self.r.ReadLine()
     check(err)
+    log.Printf(string(token))
 }
 
 func (self *Imap) readFetch() {
-    _, err := self.r.ReadString(' ')
-    check(err)
     token, err := self.r.ReadString(' ')
     check(err)
+    log.Printf(string(token))
+    token, err = self.r.ReadString(' ')
+    check(err)
+    log.Printf(string(token))
     switch token {
     case "FETCH ":
         self.readToEOL()
@@ -154,10 +171,14 @@ func (self *Imap) idle() {
     log.Printf("start idle...")
     for {
         token, err := self.r.ReadString(' ')
+        warning(err)
         if err != nil {
             log.Printf("idle EOF")
+            log.Printf(string(token))
             return
         }
+        log.Printf(string(token))
+
         switch token {
         case "* ":
             num, err := self.r.ReadString(' ')
@@ -166,8 +187,10 @@ func (self *Imap) idle() {
             log.Printf(string(num))
 
             token, _, err := self.r.ReadLine()
+            warning(err)
+            log.Printf(string(token))
+
             if string(token) != "EXISTS" {
-                log.Printf(string(token))
                 continue
             }         
             // IDLEしているgoroutineを止めないために新しいgroutineで実行する
@@ -178,8 +201,9 @@ func (self *Imap) idle() {
     }
 }
 
+// EXISTSを検出したらメール本文をチャネルに通知する
 func (self *Imap) notify(number string) {
-    // EXISTSを検出したらメール本文をチャネルに通知する
+    log.Printf(number + " start notify")
     im := Create(self.addr)
     im.Login(self.userId, self.passward, self.mailBox)
     im.write("? FETCH " + number + " BODY[1]")
@@ -191,4 +215,5 @@ func (self *Imap) notify(number string) {
     im.Logout()
 
     self.response <- response
+    log.Printf(number + " end notify")
 }
