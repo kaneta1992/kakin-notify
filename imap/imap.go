@@ -6,6 +6,8 @@ import (
     "log"
     "strings"
     "fmt"
+    "time"
+    "net"
 )
 
 type Imap struct {
@@ -43,24 +45,25 @@ func (self *Imap) Login(id string, pass string, mail string) {
     self.passward = pass
     self.mailBox = mail 
 
-    ch := make(chan string)
+    // ch := make(chan string)
     self.write(fmt.Sprintf("? LOGIN %s %s", id, pass))
-    go self.getStatus(ch)
-    if status := <- ch; status != "OK" {
-        panic("login error")
-    }
+    // go self.getStatus(ch)
+    // if status := <- ch; status != "OK" {
+    //     panic("login error")
+    // }
 
     self.write(fmt.Sprintf("? SELECT %s", mail))
-    go self.getStatus(ch)
-    if status := <- ch; status != "OK" {
-        panic("select error")
-    }
+    // go self.getStatus(ch)
+    // if status := <- ch; status != "OK" {
+    //     panic("select error")
+    // }
     log.Printf("login")
 }
 
 func (self *Imap) Logout() {
     self.write("? LOGOUT")
     log.Printf("logout")
+    time.Sleep(10 * time.Second)
     self.conn.Close()
     log.Printf("close conection")
 }
@@ -109,16 +112,57 @@ func (self *Imap) getStatus(ch chan string) {
     }
 }
 
+func (self *Imap) ReadToken() (string, error) {
+    var token []byte
+    defer func() {
+        self.conn.SetReadDeadline(time.Time{})
+    }()
+
+    for {
+        self.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+        char, err := self.r.ReadByte()
+        if err != nil {
+            // タイムアウト
+            if e, ok := err.(net.Error); ok && e.Timeout() {
+                log.Printf("readToken timeout %v", err)
+                continue
+            }
+            // EOF
+            log.Printf("error %v", err)
+            return "", err
+        }
+        switch char {
+        case ' ':
+            log.Printf(string(token))
+            return string(token), nil
+        case '\r':
+            err := self.r.UnreadByte()
+            warning(err)
+            self.readToEOL()
+            log.Printf(string(token))
+            return string(token), nil
+        }
+        token = append(token, char)
+    }
+}
+
+func (self *Imap) ReadLine() (string){
+    // token, err := self.r.ReadString('\n')
+    token, _, err := self.r.ReadLine()
+    check(err)
+    return string(token)
+}
+
 func (self *Imap) read(ch chan string) {
     self.response = ch
     for {
+        // TODO: いい感じにtoken単位で読むようにしよう
         token, err := self.r.ReadString(' ')
         log.Printf(string(token))
         warning(err)
         if err != nil {
-            if self.response != nil {
-                self.response <- "close"
-            }
+            log.Printf("send close to channel")
+            self.response <- "close"
             log.Printf("return read")
             return
         }
