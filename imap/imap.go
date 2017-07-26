@@ -64,7 +64,6 @@ func (self *Imap) Login(id string, pass string, mail string) {
 func (self *Imap) Logout() {
 	self.write("? LOGOUT")
 	log.Printf("logout")
-	time.Sleep(10 * time.Second)
 	self.conn.Close()
 	log.Printf("close conection")
 }
