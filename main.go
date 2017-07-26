@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/bluele/slack"
+	"github.com/okzk/stats"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"regexp"
+	"time"
 )
 
 type Config struct {
@@ -27,7 +29,13 @@ type SlackInfo struct {
 
 func check(err error) {
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Fatal: %v", err)
+	}
+}
+
+func warning(err error) {
+	if err != nil {
+		log.Printf("Warning: %v", err)
 	}
 }
 
@@ -80,6 +88,10 @@ var config Config
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	t := stats.SchedulePeriodically(10*time.Minute, func(s *stats.Stats) { log.Printf("gostatus: %v", s) })
+	defer t.Stop()
+
 	buf, err := ioutil.ReadFile("config.yml")
 	check(err)
 	err = yaml.Unmarshal(buf, &config)

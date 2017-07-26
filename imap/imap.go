@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"strings"
+	"time"
 )
 
 type Imap struct {
@@ -73,26 +75,34 @@ func (self *Imap) Listen(ch chan string) {
 
 func check(err error) {
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Fatal: %v", err)
+	}
+}
+
+func warning(err error) {
+	if err != nil {
+		log.Printf("Warning: %v", err)
 	}
 }
 
 func (self *Imap) write(message string) {
-	n, _ := self.w.Write([]byte(message + "\r\n"))
+	n, err := self.w.Write([]byte(message + "\r\n"))
 	log.Printf("client: wrote %q (%d bytes)", message, n)
+	warning(err)
 }
 
 func (self *Imap) getStatus(ch chan string) {
 	for {
-		token, err := self.r.ReadString(' ')
+		token, err := self.ReadToken()
 		check(err)
+		log.Printf(string(token))
 
 		switch token {
-		case "? ":
-			token, err := self.r.ReadString(' ')
+		case "?":
+			token, err := self.ReadToken()
 			check(err)
-			status := strings.TrimRight(token, " ")
-			ch <- status
+			log.Printf(string(token))
+			ch <- token
 			self.readToEOL()
 			return
 		default:
@@ -101,20 +111,65 @@ func (self *Imap) getStatus(ch chan string) {
 	}
 }
 
+func (self *Imap) ReadToken() (string, error) {
+	var token []byte
+	defer func() {
+		self.conn.SetReadDeadline(time.Time{})
+	}()
+
+	for {
+		self.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		char, err := self.r.ReadByte()
+		if err != nil {
+			// タイムアウト
+			if e, ok := err.(net.Error); ok && e.Timeout() {
+				log.Printf("readToken timeout %v", err)
+				continue
+			}
+			// EOF
+			warning(err)
+			return "", err
+		}
+		switch char {
+		case ' ':
+			// log.Printf(string(token))
+			return string(token), nil
+		case '\r':
+			err := self.r.UnreadByte()
+			warning(err)
+			// log.Printf(string(token))
+			return string(token), nil
+		}
+		token = append(token, char)
+	}
+}
+
+func (self *Imap) ReadLine() string {
+	// token, err := self.r.ReadString('\n')
+	token, _, err := self.r.ReadLine()
+	check(err)
+	return string(token)
+}
+
 func (self *Imap) read(ch chan string) {
 	self.response = ch
 	for {
-		token, err := self.r.ReadString(' ')
+		// TODO: いい感じにtoken単位で読むようにしよう
+		token, err := self.ReadToken()
+		log.Printf(string(token))
+		warning(err)
 		if err != nil {
+			log.Printf("send close channel")
 			self.response <- "close"
+			log.Printf("return read")
 			return
 		}
 
 		switch token {
-		case "* ":
+		case "*":
 			// FETCHコマンド以外実行されない前提
 			self.readFetch()
-		case "+ ":
+		case "+":
 			// IDLE
 			self.readToEOL()
 			self.idle()
@@ -126,17 +181,20 @@ func (self *Imap) read(ch chan string) {
 }
 
 func (self *Imap) readToEOL() {
-	_, _, err := self.r.ReadLine()
+	token, _, err := self.r.ReadLine()
 	check(err)
+	log.Printf(string(token))
 }
 
 func (self *Imap) readFetch() {
-	_, err := self.r.ReadString(' ')
+	token, err := self.ReadToken()
 	check(err)
-	token, err := self.r.ReadString(' ')
+	log.Printf(string(token))
+	token, err = self.ReadToken()
 	check(err)
+	log.Printf(string(token))
 	switch token {
-	case "FETCH ":
+	case "FETCH":
 		self.readToEOL()
 		// BODYを読み込む
 		encode_text, err := self.r.ReadString(')')
@@ -144,6 +202,7 @@ func (self *Imap) readFetch() {
 		encode_text = strings.TrimRight(encode_text, ")")
 		// crlfでいくつかに区切られているので結合する
 		encode_text = strings.Replace(string(encode_text), "\r\n", "", -1)
+		log.Printf(encode_text)
 		self.response <- string(encode_text)
 		self.readToEOL()
 	default:
@@ -154,21 +213,26 @@ func (self *Imap) readFetch() {
 func (self *Imap) idle() {
 	log.Printf("start idle...")
 	for {
-		token, err := self.r.ReadString(' ')
+		token, err := self.ReadToken()
+		warning(err)
 		if err != nil {
 			log.Printf("idle EOF")
+			log.Printf(string(token))
 			return
 		}
+		log.Printf(string(token))
+
 		switch token {
-		case "* ":
-			num, err := self.r.ReadString(' ')
+		case "*":
+			num, err := self.ReadToken()
 			check(err)
-			num = strings.TrimRight(num, " ")
 			log.Printf(string(num))
 
 			token, _, err := self.r.ReadLine()
+			warning(err)
+			log.Printf(string(token))
+
 			if string(token) != "EXISTS" {
-				log.Printf(string(token))
 				continue
 			}
 			// IDLEしているgoroutineを止めないために新しいgroutineで実行する
@@ -179,8 +243,9 @@ func (self *Imap) idle() {
 	}
 }
 
+// EXISTSを検出したらメール本文をチャネルに通知する
 func (self *Imap) notify(number string) {
-	// EXISTSを検出したらメール本文をチャネルに通知する
+	log.Printf(number + " start notify")
 	im := Create(self.addr)
 	im.Login(self.userId, self.passward, self.mailBox)
 	im.write("? FETCH " + number + " BODY[1]")
@@ -192,4 +257,5 @@ func (self *Imap) notify(number string) {
 	im.Logout()
 
 	self.response <- response
+	log.Printf(number + " end notify")
 }
