@@ -86,6 +86,15 @@ func (self *Client) Login(id string, pass string) (ResponseStatus, error) {
 	return self.getResponseStatus(list)
 }
 
+func (self *Client) Logout() (ResponseStatus, error) {
+	log.Printf("logout")
+	list, err := self.sendSync(fmt.Sprintf("? LOGOUT"))
+	if err != nil {
+		return ResponseStatus{}, err
+	}
+	return self.getResponseStatus(list)
+}
+
 func (self *Client) Select(mailbox string) (ResponseStatus, error) {
 	list, err := self.sendSync(fmt.Sprintf("? SELECT %s", mailbox))
 	if err != nil {
@@ -131,15 +140,6 @@ func (self *Client) Idle(callback func(int)) (ResponseStatus, error) {
 func (self *Client) Done() error {
 	_, err := self.conn.Write([]byte("Done\r\n"))
 	return err
-}
-
-func (self *Client) Logout() (ResponseStatus, error) {
-	log.Printf("logout")
-	list, err := self.sendSync(fmt.Sprintf("? LOGOUT"))
-	if err != nil {
-		return ResponseStatus{}, err
-	}
-	return self.getResponseStatus(list)
 }
 
 func (self *Client) responseReceiver(ch chan interface{}) {
