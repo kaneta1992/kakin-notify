@@ -25,8 +25,14 @@ type ResponseRecent struct {
 	Recent int
 }
 
+// TODO: IDLE中とそれ以外に対応できるように、ResponseFetchを変更する
 func (self *parser) parseFetch() (ResponseFetch, error) {
 	token, err := self.readNextBlock()
+	// FETCHはIDLE中とそれ以外の2パターンある
+	// TODO: エラー定義したい
+	if token == "" {
+		return ResponseFetch{}, nil
+	}
 	if err != nil {
 		return ResponseFetch{}, err
 	}

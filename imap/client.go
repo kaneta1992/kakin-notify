@@ -103,8 +103,8 @@ func (self *Client) Select(mailbox string) (ResponseStatus, error) {
 	return self.getResponseStatus(list)
 }
 
-func (self *Client) Fetch(number string, format string) (ResponseFetch, error) {
-	list, err := self.sendSync(fmt.Sprintf("? FETCH %s %s", number, format))
+func (self *Client) Fetch(number int, format string) (ResponseFetch, error) {
+	list, err := self.sendSync(fmt.Sprintf("? FETCH %d %s", number, format))
 	if err != nil {
 		return ResponseFetch{}, err
 	}

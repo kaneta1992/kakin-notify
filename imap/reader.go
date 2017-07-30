@@ -19,6 +19,11 @@ func (self *reader) readNextBlock() (string, error) {
 			return "", err
 		}
 		switch char {
+		case '\r':
+			if status == false {
+				_ = self.UnreadByte()
+				return "", nil
+			}
 		case '{':
 			status = true
 			continue
