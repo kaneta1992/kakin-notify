@@ -14,7 +14,8 @@ type ResponseStatus struct {
 }
 
 type ResponseFetch struct {
-	Text string
+	Number int
+	Text   string
 }
 
 type ResponseExists struct {
@@ -25,17 +26,14 @@ type ResponseRecent struct {
 	Recent int
 }
 
-// TODO: IDLE中とそれ以外に対応できるように、ResponseFetchを変更する
 func (self *parser) parseFetch() (ResponseFetch, error) {
 	token, err := self.readNextBlock()
-	// FETCHはIDLE中とそれ以外の2パターンある
-	// TODO: エラー定義したい
-	if token == "" {
+	if err == ErrNotExistBlock {
 		return ResponseFetch{}, nil
-	}
-	if err != nil {
+	} else if err != nil {
 		return ResponseFetch{}, err
 	}
+
 	num, err := strconv.Atoi(token)
 	if err != nil {
 		return ResponseFetch{}, err
@@ -49,7 +47,7 @@ func (self *parser) parseFetch() (ResponseFetch, error) {
 		return ResponseFetch{}, err
 	}
 
-	return ResponseFetch{data}, nil
+	return ResponseFetch{0, data}, nil
 }
 
 func (self *parser) parseUntag() (interface{}, error) {
@@ -67,7 +65,9 @@ func (self *parser) parseUntag() (interface{}, error) {
 		}
 		switch token {
 		case "FETCH":
-			return self.parseFetch()
+			fetch, err := self.parseFetch()
+			fetch.Number = num
+			return fetch, err
 		case "EXISTS":
 			return ResponseExists{num}, nil
 		case "RECENT":

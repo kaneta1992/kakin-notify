@@ -131,6 +131,8 @@ func (self *Client) Idle(callback func(int)) (ResponseStatus, error) {
 			return t, nil
 		case ResponseExists:
 			callback(t.Exists)
+		case ResponseFetch:
+			// log.Printf("%d: %f", t.Number, t.Text)
 		case error:
 			return ResponseStatus{}, t
 		}
