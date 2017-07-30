@@ -15,22 +15,6 @@ type Client struct {
 	conn *tls.Conn
 }
 
-type ResponseStatus struct {
-	Status string
-}
-
-type ResponseFetch struct {
-	Text string
-}
-
-type ResponseExists struct {
-	Exists int
-}
-
-type ResponseIdle struct {
-	MailCount int
-}
-
 func check(err error) {
 	if err != nil {
 		log.Fatalf("Fatal: %v", err)
@@ -64,7 +48,7 @@ func (self *Client) send(command string, ch chan interface{}) error {
 	return err
 }
 
-func (self *Client) sendSync(command string) (interface{}, error) {
+func (self *Client) sendSync(command string) ([]interface{}, error) {
 	log.Printf("start sync")
 	ch := make(chan interface{})
 	err := self.send(command, ch)
@@ -72,70 +56,80 @@ func (self *Client) sendSync(command string) (interface{}, error) {
 		return nil, err
 	}
 
-	var data interface{}
+	responseList := make([]interface{}, 0)
 	for {
 		response := <-ch
 		switch t := response.(type) {
 		case ResponseStatus:
-			if t.Status != "OK" {
-				return nil, errors.New("Fatal recieve response")
-			}
-			log.Printf("end sync %s", t.Status)
-			return data, nil
+			return append(responseList, t), nil
 		default:
-			log.Printf("response default")
-			data = t
+			if response != nil {
+				responseList = append(responseList, t)
+			}
 		}
 	}
 }
 
+func (self *Client) getResponseStatus(responseList []interface{}) (ResponseStatus, error) {
+	if len(responseList) == 0 {
+		return ResponseStatus{}, errors.New("Not exist response")
+	}
+	for _, response := range responseList {
+		switch t := response.(type) {
+		case ResponseStatus:
+			return t, nil
+		}
+	}
+	return ResponseStatus{}, errors.New("Not found ResponseStatus")
+}
+
 func (self *Client) Login(id string, pass string) (ResponseStatus, error) {
 	log.Printf("start login")
-	response, err := self.sendSync(fmt.Sprintf("? LOGIN %s %s", id, pass))
+	list, err := self.sendSync(fmt.Sprintf("? LOGIN %s %s", id, pass))
 	check(err)
-	if t, ok := response.(ResponseStatus); ok {
-		log.Printf("end login")
-		return t, nil
-	}
-	return ResponseStatus{}, errors.New("Cast error")
+	return self.getResponseStatus(list)
 }
 
 func (self *Client) Select(mailbox string) (ResponseStatus, error) {
-	response, err := self.sendSync(fmt.Sprintf("? SELECT %s", mailbox))
+	list, err := self.sendSync(fmt.Sprintf("? SELECT %s", mailbox))
+	log.Printf("%v", list)
 	check(err)
-	if t, ok := response.(ResponseStatus); ok {
-		return t, nil
-	}
-	return ResponseStatus{}, errors.New("Cast error")
+	return self.getResponseStatus(list)
 }
 
 func (self *Client) Fetch(number string, format string) (ResponseFetch, error) {
-	response, err := self.sendSync(fmt.Sprintf("? FETCH %s %s", number, format))
+	list, err := self.sendSync(fmt.Sprintf("? FETCH %s %s", number, format))
 	check(err)
-	if t, ok := response.(ResponseFetch); ok {
-		return t, nil
+	log.Printf("%v", list)
+	for _, response := range list {
+		switch t := response.(type) {
+		case ResponseFetch:
+			return t, nil
+		}
 	}
-	return ResponseFetch{}, errors.New("Cast error")
+	return ResponseFetch{}, errors.New("not found ResponseFetch")
 }
 
-func (self *Client) Idle() (ResponseIdle, error) {
+func (self *Client) Idle(callback func(int)) (ResponseStatus, error) {
 	ch := make(chan interface{})
 	err := self.send("? IDLE", ch)
 	check(err)
+
 	for {
-		//response := <- ch
-		// TODO: FETCH or END
+		response := <-ch
+		switch t := response.(type) {
+		case ResponseStatus:
+			return t, nil
+		case ResponseExists:
+			callback(t.Exists)
+		}
 	}
-	return ResponseIdle{}, err
 }
 
 func (self *Client) Logout() (ResponseStatus, error) {
-	response, err := self.sendSync(fmt.Sprintf("? LOGOUT"))
+	list, err := self.sendSync(fmt.Sprintf("? LOGOUT"))
 	check(err)
-	if t, ok := response.(ResponseStatus); ok {
-		return t, nil
-	}
-	return ResponseStatus{}, errors.New("Cast error")
+	return self.getResponseStatus(list)
 }
 
 func (self *Client) responseReceiver(ch chan interface{}) {
@@ -144,18 +138,13 @@ func (self *Client) responseReceiver(ch chan interface{}) {
 		check(err)
 		switch token {
 		case "*":
-			log.Printf("start parse untag")
 			response, err := self.parseUntag()
-			log.Printf("end parse untag")
 			check(err)
 			err = self.skipToEOL()
 			check(err)
 			ch <- response
-		case "+":
 		case "?":
-			log.Printf("start parse tag")
 			response, err := self.parseTag()
-			log.Printf("end parse tag")
 			check(err)
 			err = self.skipToEOL()
 			check(err)

@@ -10,6 +10,26 @@ type parser struct {
 	*reader
 }
 
+type ResponseStatus struct {
+	Status string
+}
+
+type ResponseFetch struct {
+	Text string
+}
+
+type ResponseExists struct {
+	Exists int
+}
+
+type ResponseRecent struct {
+	Recent int
+}
+
+type ResponseIdle struct {
+	MailCount int
+}
+
 func (self *parser) parseFetch() ResponseFetch {
 	token, err := self.readNextBlock()
 	check(err)
@@ -19,8 +39,6 @@ func (self *parser) parseFetch() ResponseFetch {
 
 	data, err := self.readBytes(num)
 	check(err)
-
-	log.Printf(data)
 
 	return ResponseFetch{data}
 }
@@ -43,8 +61,8 @@ func (self *parser) parseUntag() (interface{}, error) {
 			return self.parseFetch(), nil
 		case "EXISTS":
 			return ResponseExists{num}, nil
-		default:
-			return nil, nil
+		case "RECENT":
+			return ResponseRecent{num}, nil
 		}
 	}
 
