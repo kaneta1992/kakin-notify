@@ -28,6 +28,7 @@ type ResponseRecent struct {
 
 func (self *parser) parseFetch() (ResponseFetch, error) {
 	token, err := self.readNextBlock()
+	// IDLE時にErrNotExistBlockが発生する
 	if err == ErrNotExistBlock {
 		return ResponseFetch{}, nil
 	} else if err != nil {
