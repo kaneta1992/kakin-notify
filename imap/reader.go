@@ -2,7 +2,12 @@ package imap
 
 import (
 	"bufio"
+	"errors"
 	"log"
+)
+
+var (
+	ErrNotExistBlock = errors.New("Not exist Block")
 )
 
 type reader struct {
@@ -22,7 +27,7 @@ func (self *reader) readNextBlock() (string, error) {
 		case '\r':
 			if status == false {
 				_ = self.UnreadByte()
-				return "", nil
+				return "", ErrNotExistBlock
 			}
 		case '{':
 			status = true
