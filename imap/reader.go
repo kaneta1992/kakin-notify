@@ -16,8 +16,6 @@ func (self *reader) readNextBlock() (string, error) {
 	for {
 		char, err := self.ReadByte()
 		if err != nil {
-			// EOF
-			warning(err)
 			return "", err
 		}
 		switch char {
@@ -39,8 +37,6 @@ func (self *reader) readToken() (string, error) {
 	for {
 		char, err := self.ReadByte()
 		if err != nil {
-			// EOF
-			warning(err)
 			return "", err
 		}
 		switch char {
@@ -48,10 +44,9 @@ func (self *reader) readToken() (string, error) {
 			log.Printf(string(token))
 			return string(token), nil
 		case '\r':
-			err := self.UnreadByte()
-			warning(err)
 			log.Printf(string(token))
-			return string(token), nil
+			err := self.UnreadByte()
+			return string(token), err
 		}
 		token = append(token, char)
 	}
@@ -63,8 +58,6 @@ func (self *reader) readBytes(num int) (string, error) {
 	for i := 0; i < num; i++ {
 		char, err := self.ReadByte()
 		if err != nil {
-			// EOF
-			warning(err)
 			return "", err
 		}
 		buffer = append(buffer, char)

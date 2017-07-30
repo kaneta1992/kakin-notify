@@ -2,7 +2,6 @@ package imap
 
 import (
 	"errors"
-	"log"
 	"strconv"
 )
 
@@ -26,21 +25,25 @@ type ResponseRecent struct {
 	Recent int
 }
 
-type ResponseIdle struct {
-	MailCount int
-}
-
-func (self *parser) parseFetch() ResponseFetch {
+func (self *parser) parseFetch() (ResponseFetch, error) {
 	token, err := self.readNextBlock()
-	check(err)
+	if err != nil {
+		return ResponseFetch{}, err
+	}
 	num, err := strconv.Atoi(token)
-	check(err)
+	if err != nil {
+		return ResponseFetch{}, err
+	}
 	err = self.skipToEOL()
-
+	if err != nil {
+		return ResponseFetch{}, err
+	}
 	data, err := self.readBytes(num)
-	check(err)
+	if err != nil {
+		return ResponseFetch{}, err
+	}
 
-	return ResponseFetch{data}
+	return ResponseFetch{data}, nil
 }
 
 func (self *parser) parseUntag() (interface{}, error) {
@@ -58,7 +61,7 @@ func (self *parser) parseUntag() (interface{}, error) {
 		}
 		switch token {
 		case "FETCH":
-			return self.parseFetch(), nil
+			return self.parseFetch()
 		case "EXISTS":
 			return ResponseExists{num}, nil
 		case "RECENT":
@@ -77,7 +80,6 @@ func (self *parser) parseTag() (interface{}, error) {
 	}
 	switch token {
 	case "OK", "NG", "BAD":
-		log.Printf("return Status")
 		return ResponseStatus{token}, nil
 	default:
 		return nil, errors.New("Fatal parse tag")
