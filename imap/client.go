@@ -9,6 +9,10 @@ import (
 	"log"
 )
 
+var (
+	ErrNotFoundResponse = errors.New("Not found response")
+)
+
 type Client struct {
 	*parser
 	addr string
@@ -65,20 +69,17 @@ func (self *Client) sendSync(command string) ([]interface{}, error) {
 }
 
 func (self *Client) getResponseStatus(responseList []interface{}) (ResponseStatus, error) {
-	if len(responseList) == 0 {
-		return ResponseStatus{}, errors.New("Not exist response")
-	}
 	for _, response := range responseList {
 		switch t := response.(type) {
 		case ResponseStatus:
 			return t, nil
 		}
 	}
-	return ResponseStatus{}, errors.New("Not found ResponseStatus")
+	return ResponseStatus{}, ErrNotFoundResponse
 }
 
 func (self *Client) Login(id string, pass string) (ResponseStatus, error) {
-	log.Printf("start login")
+	log.Printf("login")
 	list, err := self.sendSync(fmt.Sprintf("? LOGIN %s %s", id, pass))
 	if err != nil {
 		return ResponseStatus{}, err
@@ -114,7 +115,7 @@ func (self *Client) Fetch(number int, format string) (ResponseFetch, error) {
 			return t, nil
 		}
 	}
-	return ResponseFetch{}, errors.New("not found ResponseFetch")
+	return ResponseFetch{}, ErrNotFoundResponse
 }
 
 func (self *Client) Idle(callback func(int)) (ResponseStatus, error) {

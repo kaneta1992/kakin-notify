@@ -73,7 +73,7 @@ var config Config
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	t := stats.SchedulePeriodically(10*time.Minute, func(s *stats.Stats) { log.Printf("gostatus: %v", s) })
+	t := stats.SchedulePeriodically(30*time.Minute, func(s *stats.Stats) { log.Printf("gostatus: %v", s) })
 	defer t.Stop()
 
 	buf, err := ioutil.ReadFile("config.yml")
@@ -82,7 +82,12 @@ func main() {
 	check(err)
 
 	for {
-		k, _ := kakin.Create("imap.gmail.com:993", config.UserId, config.Passward, config.MailBox)
+		k, err := kakin.Create("imap.gmail.com:993", config.UserId, config.Passward, config.MailBox)
+		if err != nil {
+			log.Printf("Kakin Create Error: %s", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
 		k.Start(notify)
 	}
 }
