@@ -1,8 +1,8 @@
 package kakin
 
 import (
-	"../imap"
 	"github.com/jhillyerd/enmime"
+	"github.com/kaneta1992/kakin-notify/imap"
 	"log"
 	"regexp"
 	"strings"

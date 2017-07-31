@@ -1,9 +1,9 @@
 package main
 
 import (
-	"./kakin"
 	"fmt"
 	"github.com/bluele/slack"
+	"github.com/kaneta1992/kakin-notify/kakin"
 	"github.com/okzk/stats"
 	"github.com/utahta/go-linenotify"
 	"gopkg.in/yaml.v2"
