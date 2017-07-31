@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/bluele/slack"
 	"github.com/okzk/stats"
+	"github.com/utahta/go-linenotify"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -16,6 +17,7 @@ type Config struct {
 	Passward  string
 	MailBox   string
 	SlackInfo []SlackInfo
+	LineInfo  []LineInfo
 }
 
 type SlackInfo struct {
@@ -23,6 +25,10 @@ type SlackInfo struct {
 	SlackName    string
 	SlackIconUrl string
 	SlackChannel string
+}
+
+type LineInfo struct {
+	LineToken string
 }
 
 func check(err error) {
@@ -47,6 +53,10 @@ func slackNotify(message string) {
 }
 
 func lineNotify(message string) {
+	for _, row := range config.LineInfo {
+		c := linenotify.New()
+		c.Notify(row.LineToken, message, "", "", nil)
+	}
 }
 
 func notify(money string) {
@@ -55,6 +65,7 @@ func notify(money string) {
 		message = fmt.Sprintf("私は%s課金しました", money)
 	}
 	slackNotify(message)
+	lineNotify(message)
 }
 
 var config Config
