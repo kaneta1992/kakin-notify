@@ -61,7 +61,7 @@ func analyzeGoogleMail(text string) (string, error) {
 }
 
 func (self *Kakin) Start(callback func(string)) {
-	self.client.Idle(func(exists int) {
+	_, err := self.client.Idle(func(exists int) {
 		go func() {
 			c, _ := imap.Create(self.addr)
 			c.Login(self.user, self.passward)
@@ -74,5 +74,8 @@ func (self *Kakin) Start(callback func(string)) {
 			callback(money)
 		}()
 	})
+	if err != nil {
+		log.Printf("Idle Error: %s", err)
+	}
 	self.client.Close()
 }
