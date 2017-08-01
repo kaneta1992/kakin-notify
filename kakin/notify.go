@@ -66,7 +66,8 @@ func (self *Kakin) Start(callback func(string)) {
 			c, _ := imap.Create(self.addr)
 			c.Login(self.user, self.passward)
 			c.Select(self.mailbox)
-			fetch, err := c.Fetch(exists, "RFC822")
+			fetch, _ := c.Fetch(exists, "RFC822")
+			c.Close()
 			money, err := analyzeGoogleMail(fetch.Text)
 			if err != nil {
 				return
