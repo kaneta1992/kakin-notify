@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/bluele/slack"
 	"github.com/kaneta1992/kakin-notify/kakin"
@@ -73,13 +74,18 @@ var config Config
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	t := stats.SchedulePeriodically(30*time.Minute, func(s *stats.Stats) { log.Printf("gostatus: %v", s) })
-	defer t.Stop()
+	var configPath string
+	flag.StringVar(&configPath, "c", "config.yml", "config file path")
+	flag.StringVar(&configPath, "config", "config.yml", "config file path")
+	flag.Parse()
 
-	buf, err := ioutil.ReadFile("config.yml")
+	buf, err := ioutil.ReadFile(configPath)
 	check(err)
 	err = yaml.Unmarshal(buf, &config)
 	check(err)
+
+	t := stats.SchedulePeriodically(30*time.Minute, func(s *stats.Stats) { log.Printf("gostatus: %v", s) })
+	defer t.Stop()
 
 	for {
 		k, err := kakin.Create("imap.gmail.com:993", config.UserId, config.Passward, config.MailBox)
