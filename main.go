@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"github.com/bluele/slack"
 	"github.com/kaneta1992/kakin-notify/kakin"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/naoina/genmai"
 	"github.com/okzk/stats"
 	"github.com/utahta/go-linenotify"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -60,16 +63,35 @@ func lineNotify(message string) {
 	}
 }
 
+type Wastes struct {
+	Id        int64 `db:"pk"`
+	Price     int
+	CreatedAt time.Time
+}
+
+func (self *Wastes) BeforeInsert() error {
+	self.CreatedAt = time.Now()
+	return nil
+}
+
 func notify(money string) {
+
 	message := "私は課金しました"
 	if money != "" {
-		message = fmt.Sprintf("私は%s課金しました", money)
+		message = fmt.Sprintf("私は%s円課金しました", money)
+
+		// 課金記録
+		price, _ := strconv.Atoi(money)
+		if _, err := db.Insert(&Wastes{Price: price}); err != nil {
+			panic(err)
+		}
 	}
 	slackNotify(message)
 	lineNotify(message)
 }
 
 var config Config
+var db *genmai.DB
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -79,6 +101,17 @@ func main() {
 	flag.StringVar(&configPath, "config", "config.yml", "config file path")
 	flag.Parse()
 
+	// テーブル作成
+	var err error
+	if db, err = genmai.New(&genmai.SQLite3Dialect{}, "kakin.db"); err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	if err := db.CreateTableIfNotExists(&Wastes{}); err != nil {
+		panic(err)
+	}
+
+	// config yml
 	buf, err := ioutil.ReadFile(configPath)
 	check(err)
 	err = yaml.Unmarshal(buf, &config)
