@@ -74,17 +74,33 @@ func (self *Wastes) BeforeInsert() error {
 	return nil
 }
 
-func notify(money string) {
+func getThisMonthWastePrice() int {
+	var wastes []Wastes
+	now := time.Now()
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.Local)
+	to := from.AddDate(0, 1, 0).Add(-1)
+	if err := db.Select(&wastes, db.Where("created_at").Between(from, to)); err != nil {
+		panic(err)
+	}
+	log.Printf("%v %v %v", wastes, from, to)
+	sum := 0
+	for _, waste := range wastes {
+		sum += waste.Price
+	}
+	return sum
+}
 
+func notify(money string) {
 	message := "私は課金しました"
 	if money != "" {
-		message = fmt.Sprintf("私は%s円課金しました", money)
 
 		// 課金記録
 		price, _ := strconv.Atoi(money)
 		if _, err := db.Insert(&Wastes{Price: price}); err != nil {
 			panic(err)
 		}
+
+		message = fmt.Sprintf("私は%s円課金しました！\n今月の累計課金額は%d円です!!", money, getThisMonthWastePrice())
 	}
 	slackNotify(message)
 	lineNotify(message)
