@@ -43,7 +43,7 @@ func Create(addr string, user string, pass string, mailbox string) (*Kakin, erro
 	return kakin, nil
 }
 
-func analyzeGoogleMail(text string) (string, error) {
+func analyzeMail(text string) (string, error) {
 	env, err := enmime.ReadEnvelope(strings.NewReader(text))
 	if err != nil {
 		return "", err
@@ -51,7 +51,7 @@ func analyzeGoogleMail(text string) (string, error) {
 
 	log.Printf(env.Text)
 
-	assined := regexp.MustCompile("合計: (.*)\r\n")
+	assined := regexp.MustCompile("合計:? (.*)\r\n")
 	group := assined.FindStringSubmatch(env.Text)
 	if group != nil {
 		re := regexp.MustCompile("\\D")
@@ -69,7 +69,7 @@ func (self *Kakin) Start(callback func(string)) {
 			c.Select(self.mailbox)
 			fetch, _ := c.Fetch(exists, "RFC822")
 			c.Close()
-			money, err := analyzeGoogleMail(fetch.Text)
+			money, err := analyzeMail(fetch.Text)
 			if err != nil {
 				return
 			}
