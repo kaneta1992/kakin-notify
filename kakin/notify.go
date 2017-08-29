@@ -54,7 +54,8 @@ func analyzeGoogleMail(text string) (string, error) {
 	assined := regexp.MustCompile("合計: (.*)\r\n")
 	group := assined.FindStringSubmatch(env.Text)
 	if group != nil {
-		return group[1], nil
+		re := regexp.MustCompile("\\D")
+		return re.ReplaceAllString(group[1], ""), nil
 	} else {
 		return "", nil
 	}
