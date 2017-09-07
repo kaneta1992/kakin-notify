@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bluele/slack"
+	"github.com/kaneta1992/go-ifttt-webhooks"
 	"github.com/kaneta1992/kakin-notify/kakin"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/naoina/genmai"
@@ -22,6 +23,7 @@ type Config struct {
 	MailBox   string
 	SlackInfo []SlackInfo
 	LineInfo  []LineInfo
+	IftttInfo []IftttInfo
 }
 
 type SlackInfo struct {
@@ -33,6 +35,11 @@ type SlackInfo struct {
 
 type LineInfo struct {
 	LineToken string
+}
+
+type IftttInfo struct {
+	WebhooksKey string
+	EventName   string
 }
 
 func check(err error) {
@@ -60,6 +67,13 @@ func lineNotify(message string) {
 	for _, row := range config.LineInfo {
 		c := linenotify.New()
 		c.Notify(row.LineToken, message, "", "", nil)
+	}
+}
+
+func iftttNotify(message string) {
+	for _, row := range config.IftttInfo {
+		c := ifttt.New(row.WebhooksKey)
+		c.PostWithBr(row.EventName, message, "", "")
 	}
 }
 
@@ -104,6 +118,7 @@ func notify(money string) {
 	}
 	slackNotify(message)
 	lineNotify(message)
+	iftttNotify(message)
 }
 
 var config Config
